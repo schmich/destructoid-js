@@ -1,15 +1,15 @@
 {
-  "name": "dankbot",
+  "name": "destructoid",
   "version": "0.0.1",
-  "description": "dankbot",
+  "description": "destructoid",
   "main": "index.js",
   "scripts": {
-    "start": "node dankbot.js",
+    "start": "node destructoid.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/schmich/dankbot"
+    "url": "https://github.com/schmich/destructoid"
   },
   "author": {
     "name": "Chris Schmich",
@@ -18,11 +18,10 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/schmich/dankbot/issues"
+    "url": "https://github.com/schmich/destructoid/issues"
   },
-  "homepage": "https://github.com/schmich/dankbot",
+  "homepage": "https://github.com/schmich/destructoid",
   "dependencies": {
-    "URIjs": "^1.14.2",
     "asyncawait": "^0.7.4",
     "bluebird": "^2.9.14",
     "collections": "^1.2.1",

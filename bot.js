@@ -1,104 +1,108 @@
 var EventEmitter = require('events').EventEmitter,
     irc = require('irc'),
-    common = require('./common'),
-    async = common.async,
-    await = common.await,
-    Config = common.Config,
-    Log = common.Log,
-    sprintf = common.sprintf,
-    Promise = common.Promise;
+    async = require('asyncawait/async'),
+    async = require('asyncawait/await'),
+    Log = require('./log'),
+    sprintf = require('sprintf'),
+    Promise = require('bluebird');
 
-function Bot() {
-  var emitter = new EventEmitter();
-  emitter.setMaxListeners(0);
+function Bot(opts) {
+  var self = this;
 
-  var token = Config.twitch.oauth
-  var client = new irc.Client('irc.twitch.tv', Config.twitch.user, {
-    port: 6667,
-    showErrors: true,
-    password: 'oauth:' + Config.twitch.oauth.replace(/^oauth:/i, ''),
-    userName: Config.twitch.user,
-    realName: Config.twitch.user,
-    autoConnect: false,
-    showErrors: true,
-    stripColors: true,
-    secure: false
-  });
+  this.username = opts.username;
+  this.password = 'oauth:' + opts.oauth.replace(/^oauth:/i, '');
+  this.joins = [];
+  this.client = Promise.defer();
 
-  client.on('error', function(message) {
-    Log.error(sprintf('IRC error: %s', message));
-  });
-
-  Log.info('Connecting to Twitch IRC servers.');
-  var connect = new Promise(function(resolve, reject) {
-    client.connect(5, async(function() {
-      Log.info('Connected to Twitch IRC servers.');
-      resolve();
-    }));
-  });
-
-  client.on('message#', async(function(user, channel, message) {
-    user = user.trim().toLowerCase();
-    if (user == 'jtv') {
-      return;
-    }
-
-    channel = channel.substr(1).trim().toLowerCase();
-
-    emitter.emit('message', channel, user, message, say(channel));
-  }));
-
-  client.on('join', async(function(channel, user) {
-    user = user.trim().toLowerCase();
-    if (user == 'jtv') {
-      return;
-    }
-
-    channel = channel.substr(1).trim().toLowerCase();
-
-    emitter.emit('join', channel, user, say(channel));
-  }));
-
-  client.on('part', async(function(channel, user) {
-    user = user.trim().toLowerCase();
-    if (user == 'jtv') {
-      return;
-    }
-
-    channel = channel.substr(1).trim().toLowerCase();
-
-    emitter.emit('part', channel, user, say(channel));
-  }));
+  this.emitter = new EventEmitter();
+  this.emitter.setMaxListeners(0);
 
   this.join = function(channel) {
-    connect.then(function() {
+    this.client.promise.then(function(client) {
       Log.info(sprintf('Joining #%s.', channel));
 
       client.join(sprintf('#%s', channel), function() {
         Log.info(sprintf('Joined #%s.', channel));
-        emitter.emit('channel', channel, say(channel));
+        self.emitter.emit('channel', client, channel);
       });
     });
 
     return this;
   };
 
-  var say = function(channel) {
-    return function() {
-      client.say(sprintf('#%s', channel), sprintf.apply(null, arguments));
-    };
-  };
+  function loadPlugin(plugin) {
+    plugin.load(self.emitter);
+  }
 
   this.plugin = function(plugin) {
     if (plugin instanceof Array) {
       for (var i = 0; i < plugin.length; ++i) {
-        this.plugin(plugin[i]);
+        loadPlugin(plugin[i]);
       }
     } else {
-      plugin.load(emitter);
+      loadPlugin(plugin);
     }
 
     return this;
+  };
+
+  this.listen = function() {
+    var client = new irc.Client('irc.twitch.tv', this.username, {
+      port: 6667,
+      showErrors: true,
+      password: this.password,
+      userName: this.username,
+      realName: this.username,
+      autoConnect: false,
+      showErrors: true,
+      stripColors: true,
+      secure: false
+    });
+
+    client.on('error', function(message) {
+      Log.error(sprintf('IRC error: %s', message));
+    });
+
+    Log.info('Connecting to Twitch IRC servers.');
+    client.connect(5, function() {
+      Log.info('Connected to Twitch IRC servers.');
+      self.client.resolve(client);
+    });
+
+    this.client.promise.then(function(client) {
+      client.on('message#', function(user, channel, message) {
+        user = user.trim().toLowerCase();
+        if (user === 'jtv') {
+          return;
+        }
+
+        channel = channel.substr(1).trim().toLowerCase();
+
+        self.emitter.emit('message', client, channel, user, message);
+      });
+
+      client.on('join', function(channel, user) {
+        user = user.trim().toLowerCase();
+        if (user === 'jtv') {
+          return;
+        }
+
+        channel = channel.substr(1).trim().toLowerCase();
+
+        self.emitter.emit('join', client, channel, user);
+      });
+
+      client.on('part', function(channel, user) {
+        user = user.trim().toLowerCase();
+        if (user === 'jtv') {
+          return;
+        }
+
+        channel = channel.substr(1).trim().toLowerCase();
+
+        self.emitter.emit('part', client, channel, user);
+      });
+    });
   };
 };
 

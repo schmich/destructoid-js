@@ -1,115 +1,57 @@
 var async = require('asyncawait/async');
 var await = require('asyncawait/await');
+var sprintf = require('sprintf');
 
-function OnMessage(handler) {
-  var self = this;
-
-  this.handler = async(handler);
-
-  this.load = function(events) {
-    events.on('message', async(function(channel, user, message, say) {
-      self.channel = channel;
-      self.user = user;
-      self.message = message;
-      self.say = say;
-
-      self.handler();
-    }));
-  };
-}
-
-function Command(command, handler) {
-  var self = this;
-
-  this.command = command;
-  this.handler = async(handler);
-
-  return new OnMessage(function() {
-    self.channel = this.channel;
-    self.user = this.user;
-    self.message = this.message;
-    self.say = this.say;
-
-    if (self.command instanceof RegExp) {
-      if (self.message.match(self.command)) {
-        var args = self.message.split(/\s+/);
-        args.shift();
-
-        for (var i = 0; i < args.length; ++i) {
-          args[i] = args[i].trim();
-        }
-
-        self.handler.apply(self, args);
+function plugin(handlers) {
+  function makeChannel(client, channelName) {
+    return {
+      name: channelName,
+      say: function() {
+        client.say('#' + channelName, sprintf.apply(null, arguments));
       }
-    } else if ((self.command instanceof String) || (typeof self.command == 'string')) {
-      self.message = self.message.trim();
+    };
+  }
 
-      var pattern = new RegExp('^\\s*' + self.command + '(\\s+|$)', 'i');
-      if (self.message.match(pattern)) {
-        var args = self.message.split(/\s+/);
-        args.shift();
+  function makeUser(client, username) {
+    return {
+      name: username,
+      say: function() {
+        throw new Error('user.say');
+      }
+    };
+  }
 
-        for (var i = 0; i < args.length; ++i) {
-          args[i] = args[i].trim();
-        }
+  return {
+    load: function(emitter) {
+      if (handlers.load) {
+        handlers.load(emitter);
+      }
 
-        self.handler.apply(self, args);
+      if (handlers.message) {
+        emitter.on('message', async(function(client, channel, user, message) {
+          handlers.message(makeChannel(client, channel), makeUser(client, user), message);
+        }));
+      }
+
+      if (handlers.join) {
+        emitter.on('join', async(function(client, channel, user) {
+          handlers.join(makeChannel(client, channel), makeUser(client, user));
+        }));
+      }
+
+      if (handlers.part) {
+        emitter.on('part', async(function(client, channel, user) {
+          handlers.part(makeChannel(client, channel), makeUser(client, user));
+        }));
+      }
+
+      if (handlers.channel) {
+        emitter.on('channel', async(function(client, channel) {
+          handlers.channel(makeChannel(client, channel));
+        }));
       }
     }
-  });
-}
-
-function OnChannel(handler) {
-  var self = this;
-  
-  this.handler = async(handler);
-
-  this.load = function(events) {
-    events.on('channel', async(function(channel, say) {
-      self.channel = channel;
-      self.say = say;
-
-      self.handler();
-    }));
   };
 }
 
-function OnJoin(handler) {
-  var self = this;
-
-  this.handler = async(handler);
-
-  this.load = function(events) {
-    events.on('join', async(function(channel, user, say) {
-      self.channel = channel;
-      self.user = user;
-      self.say = say;
-
-      self.handler();
-    }));
-  };
-}
-
-function OnPart(handler) {
-  var self = this;
-
-  this.handler = async(handler);
-
-  this.load = function(events) {
-    events.on('part', async(function(channel, user, say) {
-      self.channel = channel;
-      self.user = user;
-      self.say = say;
-
-      self.handler();
-    }));
-  };
-}
-
-module.exports = {
-  Command: Command,
-  OnMessage: OnMessage,
-  OnChannel: OnChannel,
-  OnJoin: OnJoin,
-  OnPart: OnPart
-};
+module.exports = plugin;
