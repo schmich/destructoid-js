@@ -1,5 +1,5 @@
 function regexEscape(pattern) {
-  return s.replace(/([/\\^$*+?.()|[\]{}])/g, '\\$1')
+  return pattern.replace(/([/\\^$*+?.()|[\]{}])/g, '\\$1')
 }
 
 function match(pattern, message, handler) {
